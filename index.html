@@ -68,6 +68,24 @@
     @keyframes blinker {
         50% { opacity: 0.3; }
     }
+
+    /* Efek Animasi 3D Rotate & Zoom Out untuk Logo */
+    @keyframes rotateZoom3D {
+      0% {
+        transform: perspective(400px) rotateY(0deg) scale(1);
+      }
+      50% {
+        transform: perspective(400px) rotateY(360deg) scale(0.75); /* Putar 360 derajat & Zoom Out menjadi 75% */
+      }
+      100% {
+        transform: perspective(400px) rotateY(720deg) scale(1);
+      }
+    }
+
+    .animate-3d-zoom {
+      animation: rotateZoom3D 2s ease-in-out;
+      transform-style: preserve-3d;
+    }
   </style>
 </head>
 <body class="bg-[#0f172a] text-slate-200 antialiased min-h-screen selection:bg-sky-500/30 selection:text-sky-200">
@@ -116,7 +134,8 @@
     <header class="border-b border-slate-700 bg-[#1e293b]/90 sticky top-0 z-40 backdrop-blur-md shadow-sm">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         <div class="flex items-center gap-4">
-          <div class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 flex items-center justify-center text-sky-400 font-bold overflow-hidden shadow-sm">
+          <!-- Logo Navbar dengan ID unik untuk animasi 3D -->
+          <div id="navbarLogoContainer" class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 flex items-center justify-center text-sky-400 font-bold overflow-hidden shadow-sm transition-all">
             <img src="images/rn.png" alt="Logo" class="w-full h-full object-contain p-0">
           </div>
           <div>
@@ -387,13 +406,26 @@
 
   <!-- MODAL REMINDER -->
   <div id="reminderModal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm hidden flex justify-center items-center p-4 z-50">
-    <div class="bg-[#1e293b] border border-slate-600 text-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto custom-scrollbar">
+    <div class="bg-[#1e293b] border border-slate-600 text-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto custom-scrollbar" id="reminderModalContent">
       <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-700">
         <h3 class="text-xs font-bold uppercase tracking-wider text-slate-100">🔔 Pengingat Agenda Penting</h3>
         <button type="button" onclick="toggleReminderModal(false)" class="w-7 h-7 flex items-center justify-center rounded-xl bg-[#0f172a] hover:bg-slate-700 text-slate-300 border border-slate-600">✕</button>
       </div>
       <div id="reminderListContainer" class="space-y-3 mb-5 max-h-60 overflow-y-auto custom-scrollbar"></div>
       <button type="button" onclick="toggleReminderModal(false)" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-xl text-xs transition">Saya Mengerti</button>
+    </div>
+  </div>
+
+  <!-- MODAL REMINDER TUGAS KHUSUS ADMIN (DEADLINE 1 MINGGU KE DEPAN) -->
+  <div id="adminTaskReminderModal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm hidden flex justify-center items-center p-4 z-50">
+    <div class="bg-[#1e293b] border border-slate-600 text-slate-100 rounded-2xl max-w-xl w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto custom-scrollbar" id="adminTaskReminderModalContent">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-700">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-100 flex items-center gap-2">⚠️ Pengingat: Tugas Mendekati Deadline (7 Hari ke Depan)</h3>
+        <button type="button" onclick="toggleAdminTaskReminderModal(false)" class="w-7 h-7 flex items-center justify-center rounded-xl bg-[#0f172a] hover:bg-slate-700 text-slate-300 border border-slate-600">✕</button>
+      </div>
+      <p class="text-xs text-slate-400 mb-3">Berikut adalah daftar tugas aktif yang deadline-nya jatuh dalam waktu 7 hari ke depan atau sudah terlewat (overdue):</p>
+      <div id="adminTaskReminderListContainer" class="space-y-3 mb-5 max-h-64 overflow-y-auto custom-scrollbar"></div>
+      <button type="button" onclick="toggleAdminTaskReminderModal(false)" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-xl text-xs transition">Saya Mengerti</button>
     </div>
   </div>
 
@@ -439,6 +471,20 @@
     let isSyncing = false;
 
     function isAdmin() { return currentUser === 'Admin'; }
+
+    // Fungsi untuk memicu animasi 3D rotasi dan zoom out pada logo setiap 2 menit (120000 ms)
+    function triggerNavbarLogoAnimation() {
+      const logoEl = document.getElementById('navbarLogoContainer');
+      if (!logoEl) return;
+      
+      // Tambahkan kelas animasi
+      logoEl.classList.add('animate-3d-zoom');
+      
+      // Hapus kelas setelah animasi selesai (durasi 2 detik) agar bisa dipicu kembali nanti
+      setTimeout(() => {
+        logoEl.classList.remove('animate-3d-zoom');
+      }, 2000);
+    }
 
     function checkNewTaskNotifications(fetchedTasks) {
         if (isAdmin() || !currentUser) return;
@@ -588,6 +634,10 @@
         fetchTasksFromSheet();
         showToast(`Selamat datang, <b>${currentUser}</b>`, 'success');
         checkAndShowReminders();
+        checkAdminTaskReminders();
+
+        // Mulai interval animasi 3D logo setiap 2 menit (120000 ms) setelah login berhasil
+        setInterval(triggerNavbarLogoAnimation, 120000);
       } else {
         alert('Password salah!');
       }
@@ -682,6 +732,72 @@
       const modal = document.getElementById('reminderModal');
       if (show) modal.classList.remove('hidden');
       else modal.classList.add('hidden');
+    }
+
+    function toggleAdminTaskReminderModal(show) {
+      const modal = document.getElementById('adminTaskReminderModal');
+      if (show) modal.classList.remove('hidden');
+      else modal.classList.add('hidden');
+    }
+
+    function checkAdminTaskReminders() {
+      if (!isAdmin()) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const oneWeekLater = new Date();
+      oneWeekLater.setDate(today.getDate() + 7);
+      oneWeekLater.setHours(23, 59, 59, 999);
+
+      const urgentTasks = tasks.filter(t => {
+        if (t.status === 'done') return false;
+        const deadlineStr = t.deadline || t.dueDate;
+        if (!deadlineStr) return false;
+        
+        const taskDate = new Date(deadlineStr);
+        if (isNaN(taskDate.getTime())) return false;
+        taskDate.setHours(0, 0, 0, 0);
+
+        return taskDate <= oneWeekLater;
+      });
+
+      if (urgentTasks.length === 0) return;
+
+      const container = document.getElementById('adminTaskReminderListContainer');
+      container.innerHTML = '';
+
+      urgentTasks.forEach(task => {
+        const deadlineStr = task.deadline || task.dueDate;
+        const taskDate = new Date(deadlineStr);
+        taskDate.setHours(0, 0, 0, 0);
+
+        let badgeLabel = '';
+        if (taskDate < today) {
+          badgeLabel = `<span class="bg-rose-950 text-rose-300 border border-rose-700 text-[10px] px-2 py-0.5 rounded">Overdue</span>`;
+        } else if (taskDate.getTime() === today.getTime()) {
+          badgeLabel = `<span class="bg-amber-950 text-amber-300 border border-amber-700 text-[10px] px-2 py-0.5 rounded">Deadline Hari Ini</span>`;
+        } else {
+          badgeLabel = `<span class="bg-sky-950 text-sky-300 border border-sky-700 text-[10px] px-2 py-0.5 rounded">Dalam 7 Hari</span>`;
+        }
+
+        const formattedDate = taskDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const item = document.createElement('div');
+        item.className = "p-3.5 bg-[#0f172a] border border-slate-600 rounded-xl flex flex-col gap-2 text-xs text-slate-200";
+        item.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="font-medium text-slate-300">📅 Deadline: ${formattedDate}</span>
+            ${badgeLabel}
+          </div>
+          <p class="font-bold text-slate-100">${escapeHtml(task.title)}</p>
+          <div class="text-[11px] text-slate-300 bg-[#1e293b] p-2.5 rounded-lg border border-slate-600 flex justify-between items-center">
+            <div>👤 PIC: <b>${task.assignees.join(', ')}</b></div>
+            <div>Prioritas: <span class="font-semibold">${task.priority}</span></div>
+          </div>`;
+        container.appendChild(item);
+      });
+
+      toggleAdminTaskReminderModal(true);
     }
 
     function checkAndShowReminders() {
@@ -1219,6 +1335,26 @@
       doc.save(`Rekapan_SiMPanRN_${new Date().toISOString().split('T')[0]}.pdf`);
       showToast('PDF diunduh', 'success');
     }
+
+    document.addEventListener('click', function(e) {
+      const modals = [
+        { id: 'warningsModal', contentId: 'warningsModalContent' },
+        { id: 'taskModal', contentId: 'modalContent' },
+        { id: 'agendaModal', contentId: 'agendaModalContent' },
+        { id: 'reminderModal', contentId: 'reminderModalContent' },
+        { id: 'adminTaskReminderModal', contentId: 'adminTaskReminderModalContent' }
+      ];
+
+      modals.forEach(m => {
+        const modalEl = document.getElementById(m.id);
+        const contentEl = document.getElementById(m.contentId);
+        if (modalEl && !modalEl.classList.contains('hidden')) {
+          if (e.target === modalEl) {
+            modalEl.classList.add('hidden');
+          }
+        }
+      });
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
       populateDropdowns();
