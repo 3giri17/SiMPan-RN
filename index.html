@@ -377,8 +377,10 @@
         <button type="button" onclick="toggleAgendaModal(false)" class="w-7 h-7 flex items-center justify-center rounded-xl bg-[#0f172a] hover:bg-slate-700 text-slate-300 border border-slate-600">✕</button>
       </div>
 
+      <!-- Form Tambah / Edit Agenda -->
       <form id="agendaForm" onsubmit="handleSaveAgenda(event)" class="mb-6 bg-[#0f172a] p-4 rounded-xl border border-slate-600 space-y-3">
         <input type="hidden" id="selectedAgendaDate" value="">
+        <input type="hidden" id="editingAgendaId" value="">
         <div>
           <label class="block text-[11px] font-medium text-slate-300 mb-1">Judul / Topik Agenda</label>
           <input type="text" id="agendaTitle" required placeholder="Contoh: Sprint Planning" class="w-full border border-slate-600 rounded-xl px-3.5 py-2 text-xs bg-[#1e293b] text-slate-200 focus:outline-none">
@@ -393,11 +395,20 @@
             <input type="text" id="agendaLocation" placeholder="Ruang Utama / Zoom" class="w-full border border-slate-600 rounded-xl px-3.5 py-2 text-xs bg-[#1e293b] text-slate-200 focus:outline-none">
           </div>
         </div>
-        <button type="submit" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-xl text-xs transition mt-1">Tambah Agenda</button>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="rescheduleFieldWrapper" style="display: none;">
+          <div>
+            <label class="block text-[11px] font-medium text-amber-300 mb-1">Reschedule Tanggal Baru</label>
+            <input type="date" id="agendaNewDate" class="w-full border border-slate-600 rounded-xl px-3.5 py-2 text-xs bg-[#1e293b] text-slate-200 focus:outline-none">
+          </div>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button type="button" id="btnCancelAgendaEdit" onclick="resetAgendaForm()" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-xl text-xs border border-slate-600 transition hidden">Batal Edit</button>
+          <button type="submit" id="btnSubmitAgenda" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-xl text-xs transition">Tambah Agenda</button>
+        </div>
       </form>
 
       <div class="space-y-3">
-        <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Daftar Agenda Tanggal Ini:</h4>
+        <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Daftar Kegiatan Tanggal Ini:</h4>
         <div id="agendaList" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar"></div>
       </div>
     </div>
@@ -456,8 +467,8 @@
     const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
 
     const defaultAgendas = [
-      { id: 101, date: todayStr, title: 'Sprint Planning Meeting', time: '09:00 - 10:30 WIB', location: 'Ruang Meeting Utama', participants: 'Semua Tim Dev', leader: 'Admin' },
-      { id: 102, date: tomorrowStr, title: 'Review Desain UI/UX & Client Brief', time: '13:30 - 15:00 WIB', location: 'Zoom Meeting', participants: 'Doni, Rian, Admin', leader: 'Admin' }
+      { id: 101, date: todayStr, title: 'Sprint Planning Meeting', time: '09:00 - 10:30 WIB', location: 'Ruang Meeting Utama', status: 'todo' },
+      { id: 102, date: tomorrowStr, title: 'Review Desain UI/UX & Client Brief', time: '13:30 - 15:00 WIB', location: 'Zoom Meeting', status: 'todo' }
     ];
 
     let tasks = [];
@@ -1014,10 +1025,39 @@
 
     function openAgendaModal(dateStr) {
       document.getElementById('selectedAgendaDate').value = dateStr;
-      document.getElementById('agendaModalTitle').textContent = `Agenda Tanggal ${dateStr}`;
-      document.getElementById('agendaForm').style.display = isAdmin() ? 'block' : 'none';
+      
+      const options = { day: 'numeric', month: 'long', year: 'numeric' };
+      const formattedDate = new Date(dateStr).toLocaleDateString('id-ID', options);
+      
+      document.getElementById('agendaModalTitle').textContent = `Agenda Kegiatan — ${formattedDate}`;
+      
+      resetAgendaForm();
       renderAgendaList(dateStr);
+
+      const dayAgendas = agendas.filter(a => a.date === dateStr);
+      const agendaFormEl = document.getElementById('agendaForm');
+
+      if (dayAgendas.length > 0) {
+        agendaFormEl.style.display = 'none';
+      } else {
+        agendaFormEl.style.display = 'block';
+      }
+
       toggleAgendaModal(true);
+    }
+
+    function resetAgendaForm() {
+      document.getElementById('agendaForm').reset();
+      document.getElementById('editingAgendaId').value = '';
+      document.getElementById('btnSubmitAgenda').textContent = 'Tambah Agenda';
+      document.getElementById('rescheduleFieldWrapper').style.display = 'none';
+      document.getElementById('btnCancelAgendaEdit').classList.add('hidden');
+      
+      const dateStr = document.getElementById('selectedAgendaDate').value;
+      const dayAgendas = agendas.filter(a => a.date === dateStr);
+      if (dayAgendas.length > 0) {
+        document.getElementById('agendaForm').style.display = 'none';
+      }
     }
 
     function renderAgendaList(dateStr) {
@@ -1026,23 +1066,36 @@
       const dayAgendas = agendas.filter(a => a.date === dateStr);
 
       if (dayAgendas.length === 0) {
-        listContainer.innerHTML = `<p class="text-xs text-slate-400 italic">Belum ada agenda.</p>`;
+        listContainer.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">Tidak ada kegiatan pada tanggal ini.</p>`;
         return;
       }
 
       dayAgendas.forEach(a => {
         const item = document.createElement('div');
-        item.className = "p-3.5 bg-[#0f172a] rounded-xl border border-slate-600 text-xs text-slate-200 space-y-2";
-        let deleteBtn = isAdmin() ? `<button onclick="deleteAgenda(${a.id}, '${dateStr}')" class="text-rose-300 text-xs px-2 py-0.5 rounded hover:bg-rose-950 border border-rose-800">Hapus</button>` : '';
+        const isDone = a.status === 'done';
+        item.className = `p-3.5 rounded-xl border text-xs space-y-2 transition ${isDone ? 'bg-emerald-950/30 border-emerald-800/60 opacity-80' : 'bg-[#0f172a] border-slate-600 text-slate-200'}`;
+        
+        let actionButtons = '';
+        if (isAdmin()) {
+          actionButtons = `
+            <div class="flex items-center gap-1.5 flex-wrap pt-1">
+              <button onclick="toggleAgendaStatus(${a.id}, '${dateStr}')" class="${isDone ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-emerald-950 text-emerald-300 border-emerald-800'} text-[10px] px-2.5 py-1 rounded border transition font-semibold">
+                ${isDone ? 'Batalkan Selesai' : '✓ Selesai'}
+              </button>
+              <button onclick="startEditAgenda(${a.id})" class="bg-sky-950 text-sky-300 border border-sky-800 text-[10px] px-2.5 py-1 rounded transition font-semibold">Edit / Reschedule</button>
+              <button onclick="deleteAgenda(${a.id}, '${dateStr}')" class="bg-rose-950 text-rose-300 border border-rose-800 text-[10px] px-2.5 py-1 rounded transition font-semibold">Hapus</button>
+            </div>`;
+        }
 
         item.innerHTML = `
-          <div class="flex justify-between items-start">
-            <span class="font-bold text-slate-100">📌 ${a.title}</span>
-            ${deleteBtn}
+          <div class="flex justify-between items-start gap-2">
+            <span class="font-bold text-slate-100 ${isDone ? 'line-through text-emerald-300' : ''}">📌 ${escapeHtml(a.title)}</span>
+            ${isDone ? '<span class="text-[10px] bg-emerald-900 text-emerald-200 px-2 py-0.5 rounded font-bold">SELESAI</span>' : ''}
           </div>
           <div class="text-[11px] text-slate-300 bg-[#1e293b] p-2 rounded border border-slate-600">
-            ⏰ Waktu: ${a.time || '-'} | 📍 Lokasi: ${a.location || '-'}
-          </div>`;
+            ⏰ Waktu: ${escapeHtml(a.time || '-')} | 📍 Lokasi: ${escapeHtml(a.location || '-')}
+          </div>
+          ${actionButtons}`;
         listContainer.appendChild(item);
       });
     }
@@ -1050,25 +1103,79 @@
     function handleSaveAgenda(e) {
       e.preventDefault();
       if (!isAdmin()) return;
-      const dateStr = document.getElementById('selectedAgendaDate').value;
+      const currentDateStr = document.getElementById('selectedAgendaDate').value;
+      const editingId = document.getElementById('editingAgendaId').value;
       const title = document.getElementById('agendaTitle').value.trim();
       const time = document.getElementById('agendaTime').value.trim();
       const location = document.getElementById('agendaLocation').value.trim();
+      const newDate = document.getElementById('agendaNewDate').value;
       if (!title) return;
 
-      agendas.push({ id: Date.now(), date: dateStr, title, time, location });
+      if (editingId) {
+        agendas = agendas.map(a => {
+          if (a.id == editingId) {
+            return {
+              ...a,
+              title,
+              time,
+              location,
+              date: newDate ? newDate : a.date
+            };
+          }
+          return a;
+        });
+        showToast('Agenda berhasil diperbarui', 'success');
+      } else {
+        agendas.push({ id: Date.now(), date: currentDateStr, title, time, location, status: 'todo' });
+        showToast('Agenda ditambahkan', 'success');
+      }
+
       saveAgendas();
-      document.getElementById('agendaForm').reset();
+      resetAgendaForm();
+      renderAgendaList(currentDateStr);
+    }
+
+    function startEditAgenda(id) {
+      const agenda = agendas.find(a => a.id == id);
+      if (!agenda) return;
+
+      document.getElementById('editingAgendaId').value = agenda.id;
+      document.getElementById('agendaTitle').value = agenda.title;
+      document.getElementById('agendaTime').value = agenda.time || '';
+      document.getElementById('agendaLocation').value = agenda.location || '';
+      document.getElementById('agendaNewDate').value = agenda.date;
+      
+      // Menampilkan kembali form input yang sebelumnya disembunyikan
+      document.getElementById('agendaForm').style.display = 'block';
+      document.getElementById('rescheduleFieldWrapper').style.display = 'block';
+      document.getElementById('btnSubmitAgenda').textContent = 'Simpan Perubahan';
+      document.getElementById('btnCancelAgendaEdit').classList.remove('hidden');
+
+      document.getElementById('agendaModalContent').scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleAgendaStatus(id, dateStr) {
+      if (!isAdmin()) return;
+      agendas = agendas.map(a => {
+        if (a.id == id) {
+          const newStatus = a.status === 'done' ? 'todo' : 'done';
+          return { ...a, status: newStatus };
+        }
+        return a;
+      });
+      saveAgendas();
       renderAgendaList(dateStr);
-      showToast('Agenda ditambahkan', 'success');
+      showToast('Status agenda diperbarui', 'success');
     }
 
     function deleteAgenda(id, dateStr) {
       if (!isAdmin()) return;
-      agendas = agendas.filter(a => a.id !== id);
-      saveAgendas();
-      renderAgendaList(dateStr);
-      showToast('Agenda dihapus', 'danger');
+      if (confirm("Apakah Anda yakin ingin menghapus agenda ini?")) {
+        agendas = agendas.filter(a => a.id !== id);
+        saveAgendas();
+        renderAgendaList(dateStr);
+        showToast('Agenda dihapus', 'danger');
+      }
     }
 
     function handleDragStart(e, id) {
@@ -1191,7 +1298,6 @@
 
           card.className = `bg-[#1e293b] p-5 rounded-2xl border-2 ${canInteract ? 'border-slate-500/80 hover:border-sky-400 cursor-grab' : 'border-slate-700 opacity-75'} shadow-xl transition-all`;
 
-          // Bagian Atas: Kumpulan/Rekap Avatar Penanggung Jawab Berjajar
           let avatarsHTML = '<div class="flex flex-wrap items-center gap-1.5 p-2 bg-[#0f172a] border border-slate-600 rounded-xl">';
           task.assignees.forEach(name => {
             const m = teamMembers[name] || { photo: 'https://i.pravatar.cc/150' };
@@ -1199,7 +1305,6 @@
           });
           avatarsHTML += '</div>';
 
-          // Bagian Bawah: Rekap Nama-nama Penanggung Jawab
           let namesHTML = '<div class="text-[11px] font-semibold text-slate-100 bg-[#0f172a] px-3 py-2 border border-slate-600 rounded-xl truncate" title="' + task.assignees.join(', ') + '">' + task.assignees.join(', ') + '</div>';
 
           const editBtnHTML = isAdmin() ? `<button onclick="openEditModal(${task.id})" class="text-slate-300 hover:text-sky-300 text-sm p-1.5 rounded-lg">✏️</button>` : '';
@@ -1272,7 +1377,6 @@
       activeTasks.forEach((task, index) => {
         const canInteract = isAdmin() || task.assignees.includes(currentUser);
         
-        // Bagian Atas: Kumpulan/Rekap Avatar Berjajar
         let avatarsHTML = '<div class="flex flex-wrap items-center gap-1.5 p-2 bg-[#0f172a] border border-slate-600 rounded-xl">';
         task.assignees.forEach(name => {
           const m = teamMembers[name] || { photo: 'https://i.pravatar.cc/150' };
@@ -1280,7 +1384,6 @@
         });
         avatarsHTML += '</div>';
 
-        // Bagian Bawah: Rekap Nama-nama Penanggung Jawab
         let namesHTML = '<div class="text-[11px] font-semibold text-slate-100 bg-[#0f172a] px-3 py-2 border border-slate-600 rounded-xl" style="word-break: break-word;">' + task.assignees.join(', ') + '</div>';
 
         const row = document.createElement('tr');
@@ -1362,7 +1465,6 @@
 
       modals.forEach(m => {
         const modalEl = document.getElementById(m.id);
-        const contentEl = document.getElementById(m.contentId);
         if (modalEl && !modalEl.classList.contains('hidden')) {
           if (e.target === modalEl) {
             modalEl.classList.add('hidden');
