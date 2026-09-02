@@ -408,7 +408,12 @@
       </form>
 
       <div class="space-y-3">
-        <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Daftar Kegiatan Tanggal Ini:</h4>
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Daftar Kegiatan Tanggal Ini:</h4>
+          <button type="button" id="btnShowAddAgendaForm" onclick="showAddAgendaForm()" class="bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-700 text-[10px] font-semibold px-2.5 py-1.5 rounded-xl transition hidden">
+            + Tambah Kegiatan
+          </button>
+        </div>
         <div id="agendaList" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar"></div>
       </div>
     </div>
@@ -1036,14 +1041,28 @@
 
       const dayAgendas = agendas.filter(a => a.date === dateStr);
       const agendaFormEl = document.getElementById('agendaForm');
+      const btnShowForm = document.getElementById('btnShowAddAgendaForm');
 
       if (dayAgendas.length > 0) {
         agendaFormEl.style.display = 'none';
+        btnShowForm.classList.remove('hidden');
       } else {
         agendaFormEl.style.display = 'block';
+        btnShowForm.classList.add('hidden');
       }
 
       toggleAgendaModal(true);
+    }
+
+    function showAddAgendaForm() {
+      document.getElementById('agendaForm').reset();
+      document.getElementById('editingAgendaId').value = '';
+      document.getElementById('btnSubmitAgenda').textContent = 'Tambah Agenda';
+      document.getElementById('rescheduleFieldWrapper').style.display = 'none';
+      document.getElementById('btnCancelAgendaEdit').classList.add('hidden');
+      
+      document.getElementById('agendaForm').style.display = 'block';
+      document.getElementById('btnShowAddAgendaForm').classList.add('hidden');
     }
 
     function resetAgendaForm() {
@@ -1055,8 +1074,15 @@
       
       const dateStr = document.getElementById('selectedAgendaDate').value;
       const dayAgendas = agendas.filter(a => a.date === dateStr);
+      const agendaFormEl = document.getElementById('agendaForm');
+      const btnShowForm = document.getElementById('btnShowAddAgendaForm');
+
       if (dayAgendas.length > 0) {
-        document.getElementById('agendaForm').style.display = 'none';
+        agendaFormEl.style.display = 'none';
+        btnShowForm.classList.remove('hidden');
+      } else {
+        agendaFormEl.style.display = 'block';
+        btnShowForm.classList.add('hidden');
       }
     }
 
@@ -1145,11 +1171,11 @@
       document.getElementById('agendaLocation').value = agenda.location || '';
       document.getElementById('agendaNewDate').value = agenda.date;
       
-      // Menampilkan kembali form input yang sebelumnya disembunyikan
       document.getElementById('agendaForm').style.display = 'block';
       document.getElementById('rescheduleFieldWrapper').style.display = 'block';
       document.getElementById('btnSubmitAgenda').textContent = 'Simpan Perubahan';
       document.getElementById('btnCancelAgendaEdit').classList.remove('hidden');
+      document.getElementById('btnShowAddAgendaForm').classList.add('hidden');
 
       document.getElementById('agendaModalContent').scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1174,6 +1200,7 @@
         agendas = agendas.filter(a => a.id !== id);
         saveAgendas();
         renderAgendaList(dateStr);
+        openAgendaModal(dateStr); // Refresh modal state
         showToast('Agenda dihapus', 'danger');
       }
     }
